@@ -11,7 +11,7 @@ def get_EPS_connection(t_clock, p_m, length, p_lr) :
     state_sampler = ns.qubits.StateSampler([ns.qubits.ketstates.b00, None], [p_m, 1 - p_m])
     
     # t_clock is in nsecs so is equal to 10e9 * x but the frequency is in the inverse of seconds so I put 10e9 on the numerator to obtain 1 / x 
-    eps = ns.components.QSource(name = "EPS", 
+    eps = ns.components.qsource.QSource(name = "EPS", 
                                 state_sampler = state_sampler,
                                 frequency = 10e9 / t_clock,
                                 num_ports=2,
@@ -74,14 +74,14 @@ class MSProtocol(ns.protocols.NodeProtocol):
         # Here I'm cheating because I'm accessing from the repeater (where the protocol is actually executed), the EPS status, that is outside,
         # maybe kilometers far away. It's ok for simulation purposes.
         if self.connection is not None:
-            self.connection.subcomponents["EPS"].status = ns.components.SourceStatus.INTERNAL
+            self.connection.subcomponents["EPS"].status = ns.components.qsource.SourceStatus.INTERNAL
             yield self.await_port_input(self.node_qport)
             
             # tell the other node the starting time
             start_time = math.ceil(ns.sim_time() + t_link * (10 ** 9))
             # round up to a few nanoseconds before the next clock cycle
             start_time = start_time + (self.t_clock - start_time % self.t_clock) + self.t_clock - 1
-            print(f"[{ns.sim_time()}] Repeater {self.node.ID}: Sending START message with value {start_time}")
+            print(f"[{ns.sim_time()}] Node {self.node.name}: Sending START message with value {start_time}")
             self.node_cport.tx_output(ns.components.Message(items=["START", start_time]))
         else:
             yield self.await_port_input(self.node_cport)
@@ -109,7 +109,7 @@ class MSProtocol(ns.protocols.NodeProtocol):
                 self.node.qmemory.put(qubit, positions=[self.mem_position])
 
                 success_index = current_attempt
-                print(f"[{ns.sim_time()}] Repeater {self.node.ID}: Latched photon at attempt {success_index}")
+                print(f"[{ns.sim_time()}] Node {self.node.name}: Latched photon at attempt {success_index}")
 
             if ev_expr.second_term.value:
                 if success_index is None:
@@ -125,7 +125,7 @@ class MSProtocol(ns.protocols.NodeProtocol):
                 other_success_index = recv_msg.items[1]
 
                 if success_index != -1 and success_index == other_success_index:
-                    print(f"[{ns.sim_time()}] Repeater {self.node.ID}: Entanglement generation successful"
+                    print(f"[{ns.sim_time()}] Node {self.node.name}: Entanglement generation successful"
                             f" at attempt {success_index}")
                     
                     # I'm telling an upper layer protocol that in the quantum memory is present the entangled qubit
@@ -133,7 +133,7 @@ class MSProtocol(ns.protocols.NodeProtocol):
 
                     # If we don't disable it the EPS continues to generate events, so the simulation does not end
                     if self.connection is not None:
-                        self.connection.subcomponents["EPS"].status = ns.components.SourceStatus.OFF
+                        self.connection.subcomponents["EPS"].status = ns.components.qsource.SourceStatus.OFF
 
                     return 
                 else: 
@@ -141,5 +141,5 @@ class MSProtocol(ns.protocols.NodeProtocol):
                     t_total_attempts = self.K_attempts * self.t_clock + ns.sim_time() + 5
                     success_index = None
                     # we must free the quantum memory slot otherwise the new qubit cannot be inserted
-                    if 0 in self.node.qmemory.used_positions:
+                    if self.mem_position in self.node.qmemory.used_positions:
                         self.node.qmemory.pop(positions=[self.mem_position])

@@ -62,11 +62,19 @@ class PurificationProtocol(ns.protocols.NodeProtocol):
         fidelity_1 = self._get_fidelity(self.qmemory_pos1)
 
         # print the fidelities
-        print(f"[{ns.sim_time()}] Repeater {self.node.ID}: Both qubits are entangled with fidelity {fidelity_0} and {fidelity_1}")
+        print(f"[{ns.sim_time()}] Node {self.node.name}: Both qubits are entangled with fidelity {fidelity_0} and {fidelity_1}")
 
         # at this point we have two entangled qubits in the memory
         prog = self._get_purification_program()
-        self.node.qmemory.execute_program(prog, qubit_mapping=[self.qmemory_pos0, self.qmemory_pos1], error_on_fail=True)
+        
+        # the middle repeater must wait the program on the other indexes if in execution
+        while(True):
+            try:
+                self.node.qmemory.execute_program(prog, qubit_mapping=[self.qmemory_pos0, self.qmemory_pos1], error_on_fail=True)
+                break
+            except ns.components.qprocessor.ProcessorBusyError:
+                self.await_timer(end_time = ns.sim_time() + 100)
+
         yield self.await_program(self.node.qmemory)
 
         # we collect the measurement result
@@ -82,15 +90,15 @@ class PurificationProtocol(ns.protocols.NodeProtocol):
 
         # we check if the measurement are the same
         if outcome == outcome_other:
-            print(f"[{ns.sim_time()}] Purification successful")
+            print(f"[{ns.sim_time()}] Node {self.node.name}: Purification successful")
             # print the new qubit fidelity with respect to the bell state
-            print(f"[{ns.sim_time()}] Fidelity of the new qubit pair with respect to the Bell state: {self._get_fidelity(position=self.qmemory_pos0)}")
+            print(f"[{ns.sim_time()}] Node {self.node.name}: Fidelity of the new qubit pair with respect to the Bell state: {self._get_fidelity(position=self.qmemory_pos0)}")
             self.send_signal(self.PURIFICATION_SIGNAL, result = True)
         else:
-            print(f"[{ns.sim_time}] Purification failed")
-            # discard the qubit from memory
-            # self.node.qmemory.pop(positions=self.qmemory_pos0)
+            print(f"[{ns.sim_time()}] Node {self.node.name}: Purification failed")
             self.send_signal(self.PURIFICATION_SIGNAL, result = False)
+        
+        print(f"[{ns.sim_time()}] Purification protocol {self.name} terminated")
 
 
         

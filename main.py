@@ -10,9 +10,9 @@ def get_network(link_length, p_lr, p_m, t_clock):
     net = ns.nodes.Network("Quantum Repeater Network")
     
     # create the repeaters
-    l_end_node = NetNode(ID = 1, name = "Left_EndNode")
-    repeater = NetNode(ID = 2, name = "Repeater_2")
-    r_end_node = NetNode(ID = 3, name = "Right_EndNode")
+    l_end_node = NetNode(ID = 1, name = "L_node")
+    repeater = NetNode(ID = 2, name = "Repeater")
+    r_end_node = NetNode(ID = 3, name = "R_node")
 
     # add the repeaters and connections to the network
     net.add_node(l_end_node)
@@ -64,27 +64,28 @@ def get_network(link_length, p_lr, p_m, t_clock):
                                            link_length = link_length, connection = None, nic_index = 0)
 
     ent_swapping_repeater = EntSwapping(node=repeater, 
-                                        to_wait=[purif_protocol_l, purif_protocol_rep_1, purif_protocol_rep_2, purif_protocol_r],
+                                        purif_to_wait=[purif_protocol_rep_1, purif_protocol_rep_2],
                                         name="ent_swapping_repeater",
                                         is_left=True)
     
     ent_swapping_r_node = EntSwapping(node=r_end_node,
-                                      to_wait=[purif_protocol_l, purif_protocol_rep_1, purif_protocol_rep_2, purif_protocol_r],
+                                      purif_to_wait=[purif_protocol_r],
                                       name="ent_swapping_r_node",
                                       is_left=False)
-
+    
+    ent_swapping_repeater.set_swap_to_wait(ent_swapping_r_node)
+    ent_swapping_r_node.set_swap_to_wait(ent_swapping_repeater)
+    
+    purif_protocol_l.start()
+    ent_swapping_repeater.start_subprotocols()
+    ent_swapping_r_node.start_subprotocols()
     ent_swapping_repeater.start()
     ent_swapping_r_node.start()
-
-    purif_protocol_l.start()
-    purif_protocol_rep_1.start()
-    purif_protocol_rep_2.start()
-    purif_protocol_r.start()
 
     return net
 
 if __name__ == '__main__':
     # to represent mixed states
     ns.set_qstate_formalism(ns.QFormalism.DM)
-    net = get_network(link_length = 30, p_lr = 0.5, p_m = 0.02, t_clock = 10)
-    ns.sim_run(10000000)
+    net = get_network(link_length = 30, p_lr = 0.9, p_m = 0.02, t_clock = 10)
+    ns.sim_run()
